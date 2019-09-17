@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:batch="http://www.springframework.org/schema/batch"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/batch http://www.springframework.org/schema/batch/spring-batch.xsd">
+
+	
+	<batch:job id="orderExportJob" incrementer="incrementer">
+		<batch:step id="orderExportStep">
+			<batch:tasklet>
+				<batch:chunk reader="orderReader"
+					processor="orderProcessor" writer="orderWriter" commit-interval="2" />
+			</batch:tasklet>
+		</batch:step>
+	</batch:job>
+
+	<!-- TODO: JdbcCursorItemReader should not be used, because it directly 
+		accesses the database (should only be done in DAOs) -->
+	<bean id="orderReader"
+		class="org.springframework.batch.item.database.JdbcCursorItemReader">
+		<property name="dataSource" ref="dataSource" />
+		<property name="rowMapper">
+			<bean
+				class="org.springframework.jdbc.core.SingleColumnRowMapper">
+				<property name="requiredType" value="java.lang.String" />
+			</bean>
+		</property>
+		<property name="sql" value="SELECT ID FROM ORDERS" />
+	</bean>
+
+	<!-- ItemWriter writes a line into output flat file -->
+	<bean id="orderWriter"
+		class="org.springframework.batch.item.file.FlatFileItemWriter"
+		scope="step">
+		<property name="resource"
+			value="file:#{jobParameters['orders.file']}" />
+		<property name="lineAggregator">
+			<!-- An Aggregator which converts an object into delimited list of strings -->
+			<bean
+				class="org.springframework.batch.item.file.transform.DelimitedLineAggregator">
+				<property name="delimiter" value="|" />
+				<property name="fieldExtractor">
+					<!-- Extractor which returns the value of beans property through reflection -->
+					<bean
+						class="org.springframework.batch.item.file.transform.BeanWrapperFieldExtractor">
+						<property name="names" value="orderID, customerID" />
+					</bean>
+				</property>
+			</bean>
+		</property>
+	</bean>
+
+</beans>
